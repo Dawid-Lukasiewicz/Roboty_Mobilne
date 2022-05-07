@@ -31,6 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define SECONDS_TO_DRIVE 160000000
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -96,7 +97,9 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-  uint16_t duty = 32000;
+  uint16_t duty = 0;
+  uint32_t time = 0;
+  uint8_t start_pwm = 0;
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -113,14 +116,35 @@ int main(void)
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+  HAL_GPIO_WritePin(MOT_R_DIR_GPIO_Port, MOT_R_DIR_Pin, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-	  HAL_Delay(500);
+	  if(!HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin))
+	  {
+		  start_pwm = 1;
+		  time = HAL_GetTick();
+	  }
+
+
+	  if(start_pwm == 1)
+	  {
+		  duty += 100;
+
+		  if(HAL_GetTick() - time > 6000)
+		  {
+			  start_pwm = 0;
+			  duty = 0;
+//			  Turn off interrupts (to add)
+		  }
+	  }
+
+	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty);
+	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty);
+	  HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -384,7 +408,7 @@ static void MX_TIM1_Init(void)
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   sConfigOC.OCIdleState = TIM_OCIDLESTATE_RESET;
