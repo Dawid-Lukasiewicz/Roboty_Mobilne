@@ -31,6 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "hc_sr04.h"
 
 /* USER CODE END Includes */
 
@@ -41,7 +42,7 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
+extern struct us_sensor_str distance_sensor;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -61,32 +62,32 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define B1_Pin GPIO_PIN_13
 #define B1_GPIO_Port GPIOC
-#define KTIR_0_Pin GPIO_PIN_0
+#define KTIR_7_Pin GPIO_PIN_0
+#define KTIR_7_GPIO_Port GPIOC
+#define KTIR_0_Pin GPIO_PIN_1
 #define KTIR_0_GPIO_Port GPIOC
-#define KTIR_1_Pin GPIO_PIN_1
+#define KTIR_6_Pin GPIO_PIN_2
+#define KTIR_6_GPIO_Port GPIOC
+#define KTIR_1_Pin GPIO_PIN_3
 #define KTIR_1_GPIO_Port GPIOC
-#define KTIR_2_Pin GPIO_PIN_2
-#define KTIR_2_GPIO_Port GPIOC
-#define KTIR_3_Pin GPIO_PIN_3
-#define KTIR_3_GPIO_Port GPIOC
-#define KTIR_4_Pin GPIO_PIN_0
-#define KTIR_4_GPIO_Port GPIOA
-#define KTIR_5_Pin GPIO_PIN_1
+#define KTIR_5_Pin GPIO_PIN_0
 #define KTIR_5_GPIO_Port GPIOA
+#define KTIR_2_Pin GPIO_PIN_1
+#define KTIR_2_GPIO_Port GPIOA
 #define USB_UART_TX_Pin GPIO_PIN_2
 #define USB_UART_TX_GPIO_Port GPIOA
 #define USB_UART_RX_Pin GPIO_PIN_3
 #define USB_UART_RX_GPIO_Port GPIOA
-#define KTIR_6_Pin GPIO_PIN_4
-#define KTIR_6_GPIO_Port GPIOA
+#define KTIR_4_Pin GPIO_PIN_4
+#define KTIR_4_GPIO_Port GPIOA
 #define LD2_Pin GPIO_PIN_5
 #define LD2_GPIO_Port GPIOA
 #define MOT_L_RPM_Pin GPIO_PIN_6
 #define MOT_L_RPM_GPIO_Port GPIOA
 #define MOT_R_RPM_Pin GPIO_PIN_7
 #define MOT_R_RPM_GPIO_Port GPIOA
-#define KTIR_7_Pin GPIO_PIN_0
-#define KTIR_7_GPIO_Port GPIOB
+#define KTIR_3_Pin GPIO_PIN_0
+#define KTIR_3_GPIO_Port GPIOB
 #define NFC_SPI_SCK_Pin GPIO_PIN_13
 #define NFC_SPI_SCK_GPIO_Port GPIOB
 #define NFC_SPI_MISO_Pin GPIO_PIN_14
@@ -103,8 +104,8 @@ void Error_Handler(void);
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
-#define SONIC_IN_Pin GPIO_PIN_15
-#define SONIC_IN_GPIO_Port GPIOA
+#define HC_ECHO_Pin GPIO_PIN_15
+#define HC_ECHO_GPIO_Port GPIOA
 #define RPI_UART_TX_Pin GPIO_PIN_10
 #define RPI_UART_TX_GPIO_Port GPIOC
 #define RPI_UART_RX_Pin GPIO_PIN_11
@@ -113,8 +114,8 @@ void Error_Handler(void);
 #define SWO_GPIO_Port GPIOB
 #define MOT_L_DIR_Pin GPIO_PIN_6
 #define MOT_L_DIR_GPIO_Port GPIOB
-#define SONIC_OUT_Pin GPIO_PIN_7
-#define SONIC_OUT_GPIO_Port GPIOB
+#define HC_TRIG_Pin GPIO_PIN_7
+#define HC_TRIG_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
