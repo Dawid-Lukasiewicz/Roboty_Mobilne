@@ -22,10 +22,12 @@
 #include "stm32l4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "hc_sr04.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN TD */
+extern HC_SR04_Typedef hc_sr04;
 
 /* USER CODE END TD */
 
@@ -227,7 +229,7 @@ void TIM2_IRQHandler(void)
   /* USER CODE BEGIN TIM2_IRQn 1 */
 	uint32_t echo_us;
 	echo_us = HAL_TIM_ReadCapturedValue(&htim2, TIM_CHANNEL_2);
-	distance_sensor.distance_cm = hc_sr04_convert_us_to_cm(echo_us);
+	hc_sr04.distance_cm = HC_SR04_Convert_us_to_cm(echo_us);
   /* USER CODE END TIM2_IRQn 1 */
 }
 

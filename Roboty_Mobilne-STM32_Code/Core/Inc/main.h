@@ -31,7 +31,9 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 #include "hc_sr04.h"
+#include "pn532.h"
 
 /* USER CODE END Includes */
 
@@ -42,7 +44,8 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-extern struct us_sensor_str distance_sensor;
+
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -88,6 +91,10 @@ void Error_Handler(void);
 #define MOT_R_RPM_GPIO_Port GPIOA
 #define KTIR_3_Pin GPIO_PIN_0
 #define KTIR_3_GPIO_Port GPIOB
+#define NFC_SPI_SS_Pin GPIO_PIN_1
+#define NFC_SPI_SS_GPIO_Port GPIOB
+#define NFC_IRQ_Pin GPIO_PIN_10
+#define NFC_IRQ_GPIO_Port GPIOB
 #define NFC_SPI_SCK_Pin GPIO_PIN_13
 #define NFC_SPI_SCK_GPIO_Port GPIOB
 #define NFC_SPI_MISO_Pin GPIO_PIN_14

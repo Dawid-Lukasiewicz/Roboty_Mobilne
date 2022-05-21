@@ -21,12 +21,14 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+enum _State{NORMAL, OFFROAD_L, OFFROAD_R, STOP_OBSTACLE, STOP_STATION};
+typedef enum _State State;
+const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", "STOP_STATION"};
 
 /* USER CODE END PTD */
 
@@ -37,6 +39,21 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+#define MAX_DUTY 65535
+#define MIN_DUTY 0
+#define THRESHOLD 3000
+#define BASE MAX_DUTY*1
+#define STOP_DIST 30
+#define STATION_TIME 5000
+#define STATION_START 1000
+
+#define DT_PID 5
+#define DT_PRINT 100
+
+#define Kp 3500
+#define Kd 0
+
+
 
 /* USER CODE END PM */
 
@@ -55,15 +72,50 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-struct us_sensor_str distance_sensor;
+HC_SR04_Typedef hc_sr04;
+PN532_Typedef pn532;
+
+State state = NORMAL;
+
+uint8_t uid[17];
+uint8_t buff[255];
+
+int weights[8] = { -20, -10, -5, -2, 2, 5, 10, 20};
+volatile static uint16_t ktir_adc[8];
+uint8_t ktir[8];
+
+int64_t duty_L = 0;
+int64_t duty_P = 0;
+
+uint8_t started = 0;
+uint8_t nfc_detected = 0;
+uint8_t station_starting = 0;
+uint8_t obstacle_detected = 0;
+uint8_t offroad_L = 0;
+uint8_t offroad_R = 0;
+
+int sum = 0;
+int detections = 0;
+int error = 0;
+int error_prev = 0;
+int delta = 0;
+
+
+uint32_t last_pid = 0;
+uint32_t last_print = 0;
+
+uint32_t last_station = 0;
+uint32_t last_station_start = 0;
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_ADC1_Init(void);
 static void MX_DMA_Init(void);
+static void MX_ADC1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM3_Init(void);
@@ -81,7 +133,6 @@ int _write(int file, unsigned char *ptr, int len)
 	HAL_UART_Transmit(&huart2, ptr, len, 50);
 	return len;
 }
-
 /* USER CODE END 0 */
 
 /**
@@ -91,7 +142,6 @@ int _write(int file, unsigned char *ptr, int len)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -100,22 +150,19 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
-
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-  MX_DMA_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
-  MX_ADC1_Init();
   MX_DMA_Init();
+  MX_ADC1_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
@@ -123,143 +170,151 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-  hc_sr04_init(&distance_sensor, &htim2, &htim4, TIM_CHANNEL_2);
-
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-
-#define MAX_DUTY 65535
-#define MIN_DUTY 0
-#define THRESHOLD 3000
-#define DT 5
-#define BASE MAX_DUTY*1
-#define STOP_DIST 30
-
-  int weights[8] = { -20, -10, -5, -2, 2, 5, 10, 20};
-  volatile static uint16_t ktir_adc[8];
-  uint8_t ktir[8];
-  uint16_t duty_L = 0;
-  uint16_t duty_P = 0;
-  int64_t iduty_L = 0;
-  int64_t iduty_P = 0;
-
-  uint8_t started = 0;
-
-  uint8_t offroad_L = 0;
-  uint8_t offroad_R = 0;
-  int sum = 0;
-  int detections = 0;
-  int error = 0;
-  int error_prev = 0;
-  int delta = 0;
-
-
-  uint16_t Kp = 3000;
-  uint16_t Kd = 0;
-
-
-  HAL_Delay(100);
+  HC_SR04_Init(&hc_sr04, &htim2, &htim4, TIM_CHANNEL_2);
+  PN532_Init(&pn532, &hspi2, NFC_SPI_SS_GPIO_Port, NFC_SPI_SS_Pin);
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)ktir_adc,8);
+
+  HAL_Delay(100);
+
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty_L);
   __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_P);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
   HAL_GPIO_WritePin(MOT_R_DIR_GPIO_Port, MOT_R_DIR_Pin, 1);
 
+  printf("#### ZWIRO-MOBIL STARTED ##### ");
+
+  PN532_SamConfiguration(&pn532) ;
+  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  //######## CHECK FOR START
 	  if( !started && !HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) )
 	  {
 		  started = 1;
-		  iduty_L = BASE;
-		  iduty_P = BASE;
+		  duty_L = BASE;
+		  duty_P = BASE;
+		  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
 	  }
 
-
-	  // cut
-	  for(uint8_t i = 0; i < 8; i++)
-		  ktir[i] = ktir_adc[i]>3000;
-
-	  sum = 0;
-	  detections = 0;
-	  for(uint8_t i = 0; i < 8; i++)
-		  if(ktir[i])
-		  {
-			  sum += weights[i];
-			  detections++;
-		  }
-	  error_prev = error;
-	  error = sum/detections;
-
-
-
-	  if( started )
+	  //######## CHECK FOR NFC TAG
+	  if(!nfc_detected && !HAL_GPIO_ReadPin(NFC_IRQ_GPIO_Port, NFC_IRQ_Pin))
 	  {
-
-		  if( !offroad_L && error == 0 && error_prev >= weights[7]-1 )
-			  offroad_L = 1;
-		  else if(offroad_L && error != 0)
-			  offroad_L = 0;
-
-
-		  if( !offroad_R && error == 0 && error_prev <= weights[0]+1 )
-			  offroad_R = 1;
-		  else if(offroad_R && error != 0 )
-			  offroad_R = 0;
-
-
-		  if(offroad_R)
-			  delta = Kp*weights[0];
-		  else if(offroad_L)
-			  delta = Kp*weights[7];
-		  else
-			  delta = Kp*error + Kd*(error-error_prev)/DT;
-
-		  if( distance_sensor.distance_cm > STOP_DIST )
-		  {
-			  iduty_L = BASE + delta;
-			  iduty_P = BASE - delta;
-		  }
-		  else
-		  {
-			  iduty_L = 0;
-			  iduty_P = 0;
-		  }
-
-		  if(iduty_L > MAX_DUTY)
-			iduty_L = MAX_DUTY;
-		  if(iduty_L < MIN_DUTY)
-			iduty_L = MIN_DUTY;
-
-		  if(iduty_P > MAX_DUTY)
-			iduty_P = MAX_DUTY;
-		  if(iduty_P < MIN_DUTY)
-			iduty_P = MIN_DUTY;
-
-		  duty_L = (uint16_t)iduty_L;
-		  duty_P = (uint16_t)iduty_P;
-
-		 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, duty_L);
-		 __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, duty_P);
-
+		  PN532_ReadDetectedID(&pn532, uid, 100);
+		  nfc_detected = 1;
+		  last_station = HAL_GetTick();
+	  }
+	  if( nfc_detected && HAL_GetTick()-last_station >= STATION_TIME)
+	  {
+		  nfc_detected = 0;
+		  last_station_start = HAL_GetTick();
+		  station_starting = 1;
+	  }
+	  if( station_starting && HAL_GetTick()-last_station_start > STATION_START )
+	  {
+		  station_starting = 0;
+		  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
 	  }
 
-	  // print
-	  printf("KTIR: ");
-	  for(uint8_t i = 0; i < 8; i++)
-	    printf("%d  ", ktir_adc[i]>3000);
-	  printf("    E: %d,    D: %d,    L: %d,    P: %d", error, delta, duty_L, duty_P);
-	  printf("    DIST:  %lu", (unsigned long)distance_sensor.distance_cm);
+	  //######## CHECK FOR OBSTACLE
+	  obstacle_detected = hc_sr04.distance_cm < STOP_DIST;
 
-	  if(offroad_R) printf("    !OFFROAD R!");
-	  else if(offroad_L) printf("    !OFFROAD L!");
-	  else if(distance_sensor.distance_cm < STOP_DIST) printf("    !STOP!");
-	  printf("\r\n");
 
-	 HAL_Delay(DT);
+	  //######## PID ROUTINE
+	  if( HAL_GetTick()-last_pid >= DT_PID )
+	  {
+		  last_pid = HAL_GetTick();
+
+		  //##### THRESHOLDING
+		  for(uint8_t i = 0; i < 8; i++)
+			  ktir[i] = ktir_adc[i]>THRESHOLD;
+
+		  //###### ERROR CALCULATION
+		  sum = 0;
+		  detections = 0;
+		  for(uint8_t i = 0; i < 8; i++)
+			  if(ktir[i])
+			  {
+				  sum += weights[i];
+				  detections++;
+			  }
+		  error_prev = error;
+		  error = sum/detections;
+
+		  //####### RUNNING ROUTINE
+		  if( started )
+		  {
+			  //######## STOP CONDITIONS
+			  if( obstacle_detected || nfc_detected)
+			  {
+				  duty_L = 0;
+				  duty_P = 0;
+			  }
+			  //####### DRIVE MODE
+			  else
+			  {
+				  //####### CHECK FOR LEFT OFFROAD
+				  if( !offroad_L && error == 0 && error_prev >= weights[7]-1 )
+					  offroad_L = 1;
+				  else if(offroad_L && error != 0)
+					  offroad_L = 0;
+
+				  //####### CHECK FOR RIGHT OFFROAD
+				  if( !offroad_R && error == 0 && error_prev <= weights[0]+1 )
+					  offroad_R = 1;
+				  else if(offroad_R && error != 0 )
+					  offroad_R = 0;
+
+
+				  //# RIGHT OFFORAD
+				  if(offroad_R)
+					  delta = Kp*weights[0];
+				  //# LEFT OFFROAD
+				  else if(offroad_L)
+					  delta = Kp*weights[7];
+				  //# NORMAL DRIVE
+				  else
+					  delta = Kp*error + Kd*(error-error_prev)/DT_PID;
+
+
+				  duty_L = BASE + delta;
+				  duty_P = BASE - delta;
+			  }
+		  }
+
+		//### APPLY CONSTRAINTS
+		if(duty_L > MAX_DUTY) duty_L = MAX_DUTY;
+		if(duty_L < MIN_DUTY) duty_L = MIN_DUTY;
+		if(duty_P > MAX_DUTY) duty_P = MAX_DUTY;
+		if(duty_P < MIN_DUTY) duty_P = MIN_DUTY;
+
+		//### SET PWMS
+		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, (uint16_t)duty_L);
+		__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, (uint16_t)duty_P);
+	  }
+
+	  //######## PRINT ROUTINE
+	  if( HAL_GetTick()-last_print >= DT_PRINT)
+	  {
+		  printf("KTIR: ");
+		  for(uint8_t i = 0; i < 8; i++)
+		    printf("%d", ktir[i]);
+		  printf("   E: %d,   D: %d,   PWM_L: %d,   PWM_P: %d", error, delta, (uint8_t)duty_L*100/MAX_DUTY, (uint8_t)duty_P*100/MAX_DUTY);
+		  printf("   DIST:  %lu   ", (unsigned long)hc_sr04.distance_cm);
+		  if( nfc_detected ) printf("!STATION!");
+		  else if( obstacle_detected ) printf("!OBSTACLE!");
+		  else if( offroad_L ) printf ("!OFFROAD_L!");
+		  else if( offroad_R ) printf ("!OFFROAD_R!");
+		  else if( started ) printf("NORMAL");
+		  else printf("IDLE");
+		  printf("\r\n");
+	  }
 
     /* USER CODE END WHILE */
 
@@ -466,12 +521,12 @@ static void MX_SPI2_Init(void)
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
-  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_LSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi2.Init.CRCPolynomial = 7;
@@ -871,10 +926,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(MOT_R_DIR_GPIO_Port, MOT_R_DIR_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, NFC_SPI_SS_Pin|MOT_L_DIR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(MOT_L_DIR_GPIO_Port, MOT_L_DIR_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(MOT_R_DIR_GPIO_Port, MOT_R_DIR_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -889,19 +944,25 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : NFC_SPI_SS_Pin MOT_L_DIR_Pin */
+  GPIO_InitStruct.Pin = NFC_SPI_SS_Pin|MOT_L_DIR_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : NFC_IRQ_Pin */
+  GPIO_InitStruct.Pin = NFC_IRQ_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(NFC_IRQ_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : MOT_R_DIR_Pin */
   GPIO_InitStruct.Pin = MOT_R_DIR_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(MOT_R_DIR_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : MOT_L_DIR_Pin */
-  GPIO_InitStruct.Pin = MOT_L_DIR_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(MOT_L_DIR_GPIO_Port, &GPIO_InitStruct);
 
 }
 
