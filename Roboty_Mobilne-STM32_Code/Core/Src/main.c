@@ -47,7 +47,7 @@ const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", 
 #define STATION_TIME 5000
 #define STATION_START 1000
 
-#define DT_PID 5
+#define DT_PID 1
 #define DT_PRINT 100
 
 #define Kp 5500
