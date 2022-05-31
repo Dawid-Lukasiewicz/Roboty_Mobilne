@@ -54,7 +54,7 @@ const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", 
 #define Kd 0
 #define Ki 0
 
-
+#define DEBOUNCE 2000
 
 /* USER CODE END PM */
 
@@ -108,6 +108,8 @@ uint32_t last_print = 0;
 uint32_t last_station = 0;
 uint32_t last_station_start = 0;
 
+uint32_t last_btn = 0;
+uint32_t now = 0;
 
 /* USER CODE END PV */
 
@@ -195,14 +197,26 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  //######## CHECK FOR START
-	  if( !started && !HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) )
+	  now = HAL_GetTick();
+	  //######## CHECK FOR START / STOP
+	  if( !HAL_GPIO_ReadPin(START_STOP_BUTTON_GPIO_Port, START_STOP_BUTTON_Pin) && now-last_btn >= DEBOUNCE )
 	  {
-		  started = 1;
-		  duty_L = BASE;
-		  duty_P = BASE;
-		  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
+		  if( !started )
+		  {
+			  started = 1;
+			  duty_L = BASE;
+			  duty_P = BASE;
+			  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
+		  }
+		  else
+		  {
+			  started = 0;
+			  duty_L = 0;
+			  duty_P = 0;
+		  }
+		  last_btn = now;
 	  }
+
 
 	  //######## CHECK FOR NFC TAG
 	  if(!nfc_detected && !HAL_GPIO_ReadPin(NFC_IRQ_GPIO_Port, NFC_IRQ_Pin))
@@ -964,6 +978,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(MOT_R_DIR_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : START_STOP_BUTTON_Pin */
+  GPIO_InitStruct.Pin = START_STOP_BUTTON_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(START_STOP_BUTTON_GPIO_Port, &GPIO_InitStruct);
 
 }
 

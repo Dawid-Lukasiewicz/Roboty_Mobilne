@@ -117,6 +117,8 @@ void Error_Handler(void);
 #define RPI_UART_TX_GPIO_Port GPIOC
 #define RPI_UART_RX_Pin GPIO_PIN_11
 #define RPI_UART_RX_GPIO_Port GPIOC
+#define START_STOP_BUTTON_Pin GPIO_PIN_12
+#define START_STOP_BUTTON_GPIO_Port GPIOC
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 #define MOT_L_DIR_Pin GPIO_PIN_6
