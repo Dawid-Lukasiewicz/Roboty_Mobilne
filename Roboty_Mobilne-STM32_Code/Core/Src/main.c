@@ -42,7 +42,7 @@ const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", 
 #define MAX_DUTY 65535
 #define MIN_DUTY 0
 #define THRESHOLD 3000
-#define BASE MAX_DUTY*1
+#define BASE MAX_DUTY/2
 #define STOP_DIST 30
 #define STATION_TIME 5000
 #define STATION_START 1000
@@ -50,11 +50,11 @@ const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", 
 #define DT_PID 5
 #define DT_PRINT 100
 
-#define Kp 3500
+#define Kp 5500
 #define Kd 0
-#define Ki 0
+#define Ki 0.1f
 
-#define DEBOUNCE 2000
+#define DEBOUNCE 1000
 
 /* USER CODE END PM */
 
@@ -145,6 +145,7 @@ int _write(int file, unsigned char *ptr, int len)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+	int Ki_sum = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -261,6 +262,8 @@ int main(void)
 			  }
 		  error_prev = error;
 		  error = sum/detections;
+		  //####### KI CALCULATION
+		  Ki_sum += DT_PID * Ki * error;
 
 		  //####### RUNNING ROUTINE
 		  if( started )
@@ -295,7 +298,7 @@ int main(void)
 					  delta = Kp*weights[7];
 				  //# NORMAL DRIVE
 				  else
-					  delta = Kp*error + Kd*(error-error_prev)/DT_PID;
+					  delta = Kp*error + Kd*(error-error_prev)/DT_PID + Ki *Ki_sum;
 
 
 				  duty_L = BASE + delta;
