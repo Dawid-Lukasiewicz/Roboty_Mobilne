@@ -52,6 +52,7 @@ const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", 
 
 #define Kp 3500
 #define Kd 0
+#define Ki 0
 
 
 
