@@ -1,0 +1,37 @@
+(kicad_sch (version 20211123) (generator eeschema)
+
+  (uuid efae1662-7461-436e-b2a9-a4304b10c0b9)
+
+  (paper "A4")
+
+  (lib_symbols
+  )
+
+
+  (no_connect (at 139.7 116.84) (uuid 5c98b46d-df99-4e3e-964a-d14040613452))
+  (no_connect (at 139.7 124.46) (uuid 5c98b46d-df99-4e3e-964a-d14040613452))
+  (no_connect (at 139.7 101.6) (uuid 5c98b46d-df99-4e3e-964a-d14040613452))
+  (no_connect (at 139.7 109.22) (uuid 5c98b46d-df99-4e3e-964a-d14040613452))
+  (no_connect (at 139.7 113.03) (uuid 5c98b46d-df99-4e3e-964a-d14040613452))
+
+  (hierarchical_label "DIR" (shape passive) (at 139.7 113.03 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid 1e55471e-30e4-4b6c-97d2-1f8c133c04c6)
+  )
+  (hierarchical_label "PWR-" (shape passive) (at 139.7 124.46 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid 240f757e-32b3-4ccb-9dfc-35e916ff86bc)
+  )
+  (hierarchical_label "ENC" (shape passive) (at 139.7 116.84 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid 5930416c-7865-40c8-bc1b-4498753f3330)
+  )
+  (hierarchical_label "PWM" (shape passive) (at 139.7 109.22 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid de4975e9-7049-4032-83b8-305989a4cd27)
+  )
+  (hierarchical_label "PWR+" (shape passive) (at 139.7 101.6 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid f821441a-1898-468c-bbad-0a9f5e7e00c5)
+  )
+)

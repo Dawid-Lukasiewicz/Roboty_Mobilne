@@ -1,0 +1,32 @@
+(kicad_sch (version 20211123) (generator eeschema)
+
+  (uuid 57ce7768-673f-4cab-8a21-d7a4da0e695b)
+
+  (paper "A4")
+
+  (lib_symbols
+  )
+
+
+  (no_connect (at 153.67 97.79) (uuid c456af5b-853a-4b71-9fe8-15ba4d78b735))
+  (no_connect (at 153.67 107.95) (uuid c456af5b-853a-4b71-9fe8-15ba4d78b735))
+  (no_connect (at 153.67 113.03) (uuid c456af5b-853a-4b71-9fe8-15ba4d78b735))
+  (no_connect (at 153.67 125.73) (uuid c456af5b-853a-4b71-9fe8-15ba4d78b735))
+
+  (hierarchical_label "VCC" (shape passive) (at 153.67 97.79 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid 28e91805-04a8-42a6-8837-98cd5d2b6f49)
+  )
+  (hierarchical_label "ECHO" (shape output) (at 153.67 113.03 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid 514fe8f2-d48d-448d-9531-bf7a08288326)
+  )
+  (hierarchical_label "TRIG" (shape input) (at 153.67 107.95 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid 93e5cd21-a96f-40e4-85e0-db32cb80e5d7)
+  )
+  (hierarchical_label "GND" (shape passive) (at 153.67 125.73 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid cb95ac53-3662-4168-982b-bffb1e894f22)
+  )
+)
