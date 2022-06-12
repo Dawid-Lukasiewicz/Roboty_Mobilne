@@ -111,6 +111,9 @@ uint32_t last_station_start = 0;
 uint32_t last_btn = 0;
 uint32_t now = 0;
 
+char rpi_buff[2];
+uint8_t led_status = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -126,11 +129,24 @@ static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-
+void RPI_Tx(unsigned char *ptr);
+void RPI_Rx(unsigned char *ptr);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void RPI_Tx(unsigned char *ptr)
+{
+	int len = strlen((char*)ptr);
+	HAL_UART_Transmit(&huart3, ptr, len, 50);
+}
+
+void RPI_Rx(unsigned char *ptr)
+{
+	int len = strlen((char*)ptr);
+	HAL_UART_Receive(&huart3, ptr, len, 50);
+}
+
 int _write(int file, unsigned char *ptr, int len)
 {
 	HAL_UART_Transmit(&huart2, ptr, len, 50);
@@ -224,12 +240,14 @@ int main(void)
 	  {
 		  PN532_ReadDetectedID(&pn532, uid, 100);
 		  nfc_detected = 1;
+		  RPI_Tx((unsigned char*)"1\n");
 		  last_station = HAL_GetTick();
 	  }
 	  if( nfc_detected && HAL_GetTick()-last_station >= STATION_TIME)
 	  {
 		  nfc_detected = 0;
 		  last_station_start = HAL_GetTick();
+		  RPI_Tx((unsigned char*)"0\n");
 		  station_starting = 1;
 	  }
 	  if( station_starting && HAL_GetTick()-last_station_start > STATION_START )
@@ -269,10 +287,18 @@ int main(void)
 		  if( started )
 		  {
 			  //######## STOP CONDITIONS
-			  if( obstacle_detected || nfc_detected)
+			  if( obstacle_detected )
 			  {
 				  duty_L = 0;
 				  duty_P = 0;
+			  }
+			  else if( nfc_detected )
+			  {
+				  duty_L = 0;
+				  duty_P = 0;
+				  RPI_Rx((unsigned char*)rpi_buff);
+				  led_status = atoi(rpi_buff);
+				  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, led_status);
 			  }
 			  //####### DRIVE MODE
 			  else
