@@ -126,11 +126,24 @@ static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-
+void RPI_Tx(unsigned char *ptr);
+void RPI_Rx(unsigned char *ptr);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void RPI_Tx(unsigned char *ptr)
+{
+	int len = strlen(ptr);
+	HAL_UART_Transmit(&huart3, ptr, len, 50);
+}
+
+void RPI_Rx(unsigned char *ptr)
+{
+	int len = strlen(ptr);
+	HAL_UART_Receive(&huart3, ptr, len, 50);
+}
+
 int _write(int file, unsigned char *ptr, int len)
 {
 	HAL_UART_Transmit(&huart2, ptr, len, 50);
