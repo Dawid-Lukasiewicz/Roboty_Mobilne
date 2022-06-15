@@ -113,6 +113,7 @@ uint32_t now = 0;
 
 char rpi_buff[2];
 uint8_t led_status = 0;
+volatile uint8_t rcv_flag = 0;
 
 /* USER CODE END PV */
 
@@ -129,22 +130,31 @@ static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-void RPI_Tx(unsigned char *ptr);
-void RPI_Rx(unsigned char *ptr);
+void RPI_Tx(char *ptr);
+void RPI_Rx(char *ptr);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void RPI_Tx(unsigned char *ptr)
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart)
 {
-	int len = strlen((char*)ptr);
-	HAL_UART_Transmit(&huart3, ptr, len, 50);
+	if( huart == &huart3 )
+	{
+		rcv_flag = 1;
+	}
 }
 
-void RPI_Rx(unsigned char *ptr)
+
+void RPI_Tx(char *ptr)
 {
-	int len = strlen((char*)ptr);
-	HAL_UART_Receive(&huart3, ptr, len, 50);
+	int len = strlen(ptr);
+	HAL_UART_Transmit(&huart3, (unsigned char*)ptr, len, 50);
+}
+
+void RPI_Rx(char *ptr)
+{
+	HAL_UART_Receive_IT(&huart3, (unsigned char*)ptr, 2);
 }
 
 int _write(int file, unsigned char *ptr, int len)
@@ -240,18 +250,23 @@ int main(void)
 	  {
 		  PN532_ReadDetectedID(&pn532, uid, 100);
 		  nfc_detected = 1;
-		  RPI_Tx((unsigned char*)"1\n");
+		  RPI_Tx("1\n");
 		  last_station = HAL_GetTick();
 	  }
+
 	  if( nfc_detected && HAL_GetTick()-last_station >= STATION_TIME)
 	  {
 		  nfc_detected = 0;
 		  last_station_start = HAL_GetTick();
-		  RPI_Tx((unsigned char*)"0\n");
 		  station_starting = 1;
+		  RPI_Tx("0\n");
+		  HAL_Delay(1);
+		  RPI_Rx(rpi_buff);
 	  }
+
 	  if( station_starting && HAL_GetTick()-last_station_start > STATION_START )
 	  {
+
 		  station_starting = 0;
 		  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
 	  }
@@ -296,9 +311,13 @@ int main(void)
 			  {
 				  duty_L = 0;
 				  duty_P = 0;
-				  RPI_Rx((unsigned char*)rpi_buff);
-				  led_status = atoi(rpi_buff);
-				  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, led_status);
+				  if(rcv_flag)
+				  {
+					  led_status = atoi(rpi_buff);
+					  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, led_status);
+					  rcv_flag = 0;
+				  }
+
 			  }
 			  //####### DRIVE MODE
 			  else
