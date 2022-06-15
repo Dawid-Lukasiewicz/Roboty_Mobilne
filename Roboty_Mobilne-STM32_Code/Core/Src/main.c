@@ -377,6 +377,10 @@ int main(void)
 		  else if( started ) printf("NORMAL");
 		  else printf("IDLE");
 		  printf("\r\n");
+
+//		  char val[2] = {'1', '\n'};
+//		  HAL_UART_Transmit(&huart3, (uint8_t*)val, 2, 50);
+//		  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 	  }
 
     /* USER CODE END WHILE */
