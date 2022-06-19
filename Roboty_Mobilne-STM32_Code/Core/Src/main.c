@@ -30,6 +30,9 @@ enum _State{NORMAL, OFFROAD_L, OFFROAD_R, STOP_OBSTACLE, STOP_STATION};
 typedef enum _State State;
 const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", "STOP_STATION"};
 
+typedef enum {MSG_START = '1', MSG_STOP = '2', MSG_OBSTACLE = '3', MSG_NFC = '4', MSG_DONE = '5', MSG_FREE ='6'} MSG_t;
+
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -44,8 +47,9 @@ const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", 
 #define THRESHOLD 3000
 #define BASE MAX_DUTY/2
 #define STOP_DIST 30
-#define STATION_TIME 5000
+#define STATION_TIME 10000
 #define STATION_START 1000
+#define OBSTACLE_TIME 1000
 
 #define DT_PID 1
 #define DT_PRINT 100
@@ -54,7 +58,7 @@ const char* state_map[] = {"NORMAL", "OFFROAD_L", "OFFROAD_R", "STOP_OBSTACLE", 
 #define Kd 0
 #define Ki 0.1f
 
-#define DEBOUNCE 1000
+#define DEBOUNCE 100
 
 /* USER CODE END PM */
 
@@ -108,10 +112,17 @@ uint32_t last_print = 0;
 uint32_t last_station = 0;
 uint32_t last_station_start = 0;
 
+uint32_t last_obstacle = 0;
+
 uint32_t last_btn = 0;
+uint32_t last_press = 0;
+uint8_t btn_pressed = 0;
+uint8_t btn_hold = 0;
 uint32_t now = 0;
 
-char rpi_buff[2];
+uint8_t rpi_rx_buff[2];
+uint8_t rpi_tx_buff[3];
+
 uint8_t led_status = 0;
 volatile uint8_t rcv_flag = 0;
 
@@ -130,8 +141,6 @@ static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-void RPI_Tx(char *ptr);
-void RPI_Rx(char *ptr);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -146,15 +155,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef * huart)
 }
 
 
-void RPI_Tx(char *ptr)
+void RPI_Tx(MSG_t msg)
 {
-	int len = strlen(ptr);
-	HAL_UART_Transmit(&huart3, (unsigned char*)ptr, len, 50);
+	rpi_tx_buff[0] = msg;
+	rpi_tx_buff[1] = '\n';
+	rpi_tx_buff[2] = '\r';
+	HAL_UART_Transmit(&huart3, rpi_tx_buff, 3, 50);
 }
 
-void RPI_Rx(char *ptr)
+void RPI_Rx()
 {
-	HAL_UART_Receive_IT(&huart3, (unsigned char*)ptr, 2);
+	rcv_flag = 0;
+	HAL_UART_Receive_IT(&huart3, rpi_rx_buff, 3);
 }
 
 int _write(int file, unsigned char *ptr, int len)
@@ -226,21 +238,34 @@ int main(void)
   {
 	  now = HAL_GetTick();
 	  //######## CHECK FOR START / STOP
-	  if( !HAL_GPIO_ReadPin(START_STOP_BUTTON_GPIO_Port, START_STOP_BUTTON_Pin) && now-last_btn >= DEBOUNCE )
+	  btn_pressed = !HAL_GPIO_ReadPin(START_STOP_BUTTON_GPIO_Port, START_STOP_BUTTON_Pin);
+	  if( !btn_hold && btn_pressed && now-last_btn >= DEBOUNCE )
 	  {
-		  if( !started )
+		  btn_hold = 1;
+		  last_press = now;
+	  }
+
+	  if( btn_hold && !btn_pressed )
+	  {
+		  if( now-last_press >= DEBOUNCE)
 		  {
-			  started = 1;
-			  duty_L = BASE;
-			  duty_P = BASE;
-			  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
+			  if( !started )
+			  {
+				  started = 1;
+				  duty_L = BASE;
+				  duty_P = BASE;
+				  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
+				  RPI_Tx(MSG_START);
+			  }
+			  else
+			  {
+				  started = 0;
+				  duty_L = 0;
+				  duty_P = 0;
+				  RPI_Tx(MSG_STOP);
+			  }
 		  }
-		  else
-		  {
-			  started = 0;
-			  duty_L = 0;
-			  duty_P = 0;
-		  }
+		  btn_hold = 0;
 		  last_btn = now;
 	  }
 
@@ -250,35 +275,44 @@ int main(void)
 	  {
 		  PN532_ReadDetectedID(&pn532, uid, 100);
 		  nfc_detected = 1;
-		  RPI_Tx("1\n");
-		  last_station = HAL_GetTick();
+		  RPI_Tx(MSG_NFC);
+		  last_station = now;
+		  RPI_Rx();
+
 	  }
 
-	  if( nfc_detected && HAL_GetTick()-last_station >= STATION_TIME)
+	  if( nfc_detected && ( (rcv_flag && rpi_rx_buff[0] == MSG_DONE) || (now-last_station >= STATION_TIME) ) )
 	  {
 		  nfc_detected = 0;
-		  last_station_start = HAL_GetTick();
+		  last_station_start = now;
 		  station_starting = 1;
-		  RPI_Tx("0\n");
-		  HAL_Delay(1);
-		  RPI_Rx(rpi_buff);
 	  }
 
-	  if( station_starting && HAL_GetTick()-last_station_start > STATION_START )
+	  if( station_starting && now-last_station_start > STATION_START )
 	  {
-
 		  station_starting = 0;
 		  PN532_StartPassiveTargetIDDetection(&pn532, PN532_MIFARE_ISO14443A, 100);
 	  }
 
 	  //######## CHECK FOR OBSTACLE
-	  obstacle_detected = hc_sr04.distance_cm < STOP_DIST;
-
+	  if(!obstacle_detected && hc_sr04.distance_cm <= STOP_DIST)
+	  {
+		  obstacle_detected = 1;
+		  last_obstacle = now;
+		  if(started)
+			  RPI_Tx(MSG_OBSTACLE);
+	  }
+	  else if(obstacle_detected && hc_sr04.distance_cm > STOP_DIST && now-last_obstacle > OBSTACLE_TIME)
+	  {
+		  obstacle_detected = 0;
+		  if(started)
+			  RPI_Tx(MSG_FREE);
+	  }
 
 	  //######## PID ROUTINE
-	  if( HAL_GetTick()-last_pid >= DT_PID )
+	  if( now-last_pid >= DT_PID )
 	  {
-		  last_pid = HAL_GetTick();
+		  last_pid = now;
 
 		  //##### THRESHOLDING
 		  for(uint8_t i = 0; i < 8; i++)
@@ -302,22 +336,10 @@ int main(void)
 		  if( started )
 		  {
 			  //######## STOP CONDITIONS
-			  if( obstacle_detected )
+			  if( obstacle_detected || nfc_detected )
 			  {
 				  duty_L = 0;
 				  duty_P = 0;
-			  }
-			  else if( nfc_detected )
-			  {
-				  duty_L = 0;
-				  duty_P = 0;
-				  if(rcv_flag)
-				  {
-					  led_status = atoi(rpi_buff);
-					  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, led_status);
-					  rcv_flag = 0;
-				  }
-
 			  }
 			  //####### DRIVE MODE
 			  else
@@ -363,7 +385,7 @@ int main(void)
 	  }
 
 	  //######## PRINT ROUTINE
-	  if( HAL_GetTick()-last_print >= DT_PRINT)
+	  if( now-last_print >= DT_PRINT)
 	  {
 		  printf("KTIR: ");
 		  for(uint8_t i = 0; i < 8; i++)
